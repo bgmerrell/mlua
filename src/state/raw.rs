@@ -130,8 +130,18 @@ impl RawLua {
         }
         assert!(!state.is_null(), "Failed to create a Lua VM");
 
-        ffi::luaL_requiref(state, cstr!("_G"), ffi::luaopen_base, 1);
-        ffi::lua_pop(state, 1);
+        #[cfg(feature = "lua51-wasi")]
+        {
+            // For WASI builds, skip base library loading here since luaL_requiref
+            // doesn't work properly due to package system limitations in WASI.
+            // The base library will be loaded later via luaL_openlibs in load_std_libs.
+        }
+
+        #[cfg(not(feature = "lua51-wasi"))]
+        {
+            ffi::luaL_requiref(state, cstr!("_G"), ffi::luaopen_base, 1);
+            ffi::lua_pop(state, 1);
+        }
 
         // Init Luau code generator (jit)
         #[cfg(feature = "luau-jit")]
@@ -155,7 +165,12 @@ impl RawLua {
 
                     #[cfg(any(feature = "lua54", feature = "lua53", feature = "lua52"))]
                     ffi::lua_rawgeti(state, ffi::LUA_REGISTRYINDEX, ffi::LUA_RIDX_GLOBALS);
-                    #[cfg(any(feature = "lua51", feature = "luajit", feature = "luau"))]
+                    #[cfg(any(
+                        feature = "lua51",
+                        feature = "lua51-wasi",
+                        feature = "luajit",
+                        feature = "luau"
+                    ))]
                     ffi::lua_pushvalue(state, ffi::LUA_GLOBALSINDEX);
 
                     ffi::lua_pushcfunction(state, safe_pcall);
@@ -292,7 +307,7 @@ impl RawLua {
         let res = load_std_libs(self.main_state(), libs);
 
         // If `package` library loaded into a safe lua state then disable C modules
-        #[cfg(not(feature = "luau"))]
+        #[cfg(all(not(feature = "luau"), not(feature = "lua51-wasi")))]
         if is_safe {
             let curr_libs = (*self.extra.get()).libs;
             if (curr_libs ^ (curr_libs | libs)).contains(StdLib::PACKAGE) {
@@ -420,7 +435,12 @@ impl RawLua {
                         if ffi::lua_isyieldable(state) != 0 {
                             ffi::lua_yield(state, 0);
                         }
-                        #[cfg(any(feature = "lua52", feature = "lua51", feature = "luajit"))]
+                        #[cfg(any(
+                            feature = "lua52",
+                            feature = "lua51",
+                            feature = "lua51-wasi",
+                            feature = "luajit"
+                        ))]
                         {
                             ffi::lua_pushliteral(state, c"attempt to yield from a hook");
                             ffi::lua_error(state);
@@ -723,7 +743,13 @@ impl RawLua {
                 }
             }
 
-            #[cfg(any(feature = "lua52", feature = "lua51", feature = "luajit", feature = "luau"))]
+            #[cfg(any(
+                feature = "lua52",
+                feature = "lua51",
+                feature = "lua51-wasi",
+                feature = "luajit",
+                feature = "luau"
+            ))]
             ffi::LUA_TNUMBER => {
                 use crate::types::Number;
 
@@ -842,7 +868,12 @@ impl RawLua {
     #[inline]
     pub(crate) unsafe fn push_error_traceback(&self) {
         let state = self.state();
-        #[cfg(any(feature = "lua51", feature = "luajit", feature = "luau"))]
+        #[cfg(any(
+            feature = "lua51",
+            feature = "lua51-wasi",
+            feature = "luajit",
+            feature = "luau"
+        ))]
         ffi::lua_xpush(self.ref_thread(), state, ExtraData::ERROR_TRACEBACK_IDX);
         // Lua 5.2+ support light C functions that does not require extra allocations
         #[cfg(any(feature = "lua54", feature = "lua53", feature = "lua52"))]
@@ -919,7 +950,7 @@ impl RawLua {
         ffi::lua_setmetatable(state, -2);
 
         // Set empty environment for Lua 5.1
-        #[cfg(any(feature = "lua51", feature = "luajit"))]
+        #[cfg(any(feature = "lua51", feature = "lua51-wasi", feature = "luajit"))]
         if protect {
             protect_lua!(state, 1, 1, fn(state) {
                 ffi::lua_newtable(state);
@@ -1377,6 +1408,84 @@ impl RawLua {
 
 // Uses 3 stack spaces
 unsafe fn load_std_libs(state: *mut ffi::lua_State, libs: StdLib) -> Result<()> {
+    #[cfg(feature = "lua51-wasi")]
+    {
+        // WASI-specific library loading strategy:
+        //
+        // The standard luaL_requiref approach doesn't work in WASI builds because:
+        // 1. luaL_requiref depends on the package system (package.loaded table)
+        // 2. The package system initialization fails in WASI due to file system limitations
+        // 3. This causes libraries to appear as strings instead of tables
+        //
+        // Solution: Use luaL_openlibs (same as standalone WASI Lua binary) which:
+        // - Calls library functions directly without package system dependency
+        // - Matches the initialization used by the working standalone WASI Lua
+
+        if libs.contains(StdLib::ALL) {
+            return protect_lua!(state, 0, 0, |state| { ffi::luaL_openlibs(state) });
+        }
+
+        // For selective loading in WASI: load all standard libraries then disable unwanted ones
+        // This approach is necessary because individual luaopen_* calls via luaL_requiref fail
+        let standard_libs = [
+            StdLib::TABLE,
+            StdLib::IO,
+            StdLib::OS,
+            StdLib::STRING,
+            StdLib::MATH,
+            StdLib::PACKAGE,
+        ];
+
+        if standard_libs.iter().any(|&lib| libs.contains(lib)) {
+            // Load all standard libraries first
+            protect_lua!(state, 0, 0, |state| { ffi::luaL_openlibs(state) })?;
+
+            // Disable libraries not requested by setting them to nil
+            if !libs.contains(StdLib::TABLE) {
+                ffi::lua_pushnil(state);
+                ffi::lua_setglobal(state, cstr!("table"));
+            }
+            #[cfg(not(feature = "luau"))]
+            if !libs.contains(StdLib::IO) {
+                ffi::lua_pushnil(state);
+                ffi::lua_setglobal(state, cstr!("io"));
+            }
+            if !libs.contains(StdLib::OS) {
+                ffi::lua_pushnil(state);
+                ffi::lua_setglobal(state, cstr!("os"));
+            }
+            if !libs.contains(StdLib::STRING) {
+                ffi::lua_pushnil(state);
+                ffi::lua_setglobal(state, cstr!("string"));
+            }
+            if !libs.contains(StdLib::MATH) {
+                ffi::lua_pushnil(state);
+                ffi::lua_setglobal(state, cstr!("math"));
+            }
+            if !libs.contains(StdLib::DEBUG) {
+                ffi::lua_pushnil(state);
+                ffi::lua_setglobal(state, cstr!("debug"));
+            }
+            #[cfg(not(feature = "luau"))]
+            if !libs.contains(StdLib::PACKAGE) {
+                ffi::lua_pushnil(state);
+                ffi::lua_setglobal(state, cstr!("package"));
+            }
+
+            return Ok(());
+        } else if libs == StdLib::NONE {
+            // For NONE, we still need to load base library (print, type, _G, etc.)
+            // but not the other standard libraries
+            protect_lua!(state, 0, 0, |state| {
+                ffi::lua_pushcfunction(state, ffi::luaopen_base);
+                ffi::lua_pushstring(state, cstr!(""));
+                ffi::lua_call(state, 1, 0)
+            })?;
+
+            return Ok(());
+        }
+    }
+
     unsafe fn requiref(
         state: *mut ffi::lua_State,
         modname: *const c_char,
@@ -1410,6 +1519,23 @@ unsafe fn load_std_libs(state: *mut ffi::lua_State, libs: StdLib) -> Result<()> 
     // Stop collector during library initialization
     #[cfg(feature = "luajit")]
     let _gc_guard = GcGuard::new(state);
+
+    // Skip standard library loading for WASI if already handled above
+    #[cfg(feature = "lua51-wasi")]
+    {
+        let standard_libs = [
+            StdLib::ALL,
+            StdLib::TABLE,
+            StdLib::IO,
+            StdLib::OS,
+            StdLib::STRING,
+            StdLib::MATH,
+            StdLib::PACKAGE,
+        ];
+        if standard_libs.iter().any(|&lib| libs.contains(lib)) {
+            return Ok(());
+        }
+    }
 
     #[cfg(any(feature = "lua54", feature = "lua53", feature = "lua52", feature = "luau"))]
     {

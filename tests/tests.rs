@@ -538,7 +538,12 @@ fn test_safe_integers() -> Result<()> {
     assert_eq!(f.call::<i64>(MIN_SAFE_INTEGER)?, MIN_SAFE_INTEGER);
 
     // For Lua versions that does not support 64-bit integers, the values will be converted to f64
-    #[cfg(any(feature = "luau", feature = "lua51", feature = "luajit"))]
+    #[cfg(any(
+        feature = "luau",
+        feature = "lua51",
+        feature = "lua51-wasi",
+        feature = "luajit"
+    ))]
     {
         assert_ne!(f.call::<i64>(MAX_SAFE_INTEGER + 2)?, MAX_SAFE_INTEGER + 2);
         assert_ne!(f.call::<i64>(MIN_SAFE_INTEGER - 2)?, MIN_SAFE_INTEGER - 2);
@@ -582,7 +587,13 @@ fn test_num_conversion() -> Result<()> {
     assert_eq!(lua.load("1.0").eval::<f64>()?, 1.0);
     #[cfg(any(feature = "lua54", feature = "lua53"))]
     assert_eq!(lua.load("1.0").eval::<String>()?, "1.0");
-    #[cfg(any(feature = "lua52", feature = "lua51", feature = "luajit", feature = "luau"))]
+    #[cfg(any(
+        feature = "lua52",
+        feature = "lua51",
+        feature = "lua51-wasi",
+        feature = "luajit",
+        feature = "luau"
+    ))]
     assert_eq!(lua.load("1.0").eval::<String>()?, "1");
 
     assert_eq!(lua.load("1.5").eval::<i64>()?, 1);
@@ -632,7 +643,7 @@ fn test_pcall_xpcall() -> Result<()> {
     assert!(lua.load("xpcall(function() end)").exec().is_err());
 
     // Lua >= 5.2 compatible version of xpcall for 5.1
-    #[cfg(feature = "lua51")]
+    #[cfg(any(feature = "lua51", feature = "lua51-wasi"))]
     lua.load(
         r#"
         local xpcall_orig = xpcall
@@ -676,7 +687,7 @@ fn test_pcall_xpcall() -> Result<()> {
     assert_eq!(globals.get::<bool>("xpcall_statusr")?, false);
     #[cfg(any(feature = "lua54", feature = "lua53", feature = "lua52", feature = "luajit"))]
     assert_eq!(globals.get::<std::string::String>("xpcall_error")?, "testerror");
-    #[cfg(feature = "lua51")]
+    #[cfg(any(feature = "lua51", feature = "lua51-wasi"))]
     assert!(globals
         .get::<String>("xpcall_error")?
         .to_str()?
@@ -1170,6 +1181,7 @@ fn test_context_thread() -> Result<()> {
 
     #[cfg(any(
         feature = "lua51",
+        feature = "lua51-wasi",
         all(feature = "luajit", not(feature = "luajit52")),
         feature = "luau"
     ))]
@@ -1179,7 +1191,11 @@ fn test_context_thread() -> Result<()> {
 }
 
 #[test]
-#[cfg(any(feature = "lua51", all(feature = "luajit", not(feature = "luajit52"))))]
+#[cfg(any(
+    feature = "lua51",
+    feature = "lua51-wasi",
+    all(feature = "luajit", not(feature = "luajit52"))
+))]
 fn test_context_thread_51() -> Result<()> {
     let lua = Lua::new();
 
@@ -1354,7 +1370,7 @@ fn test_inspect_stack() -> Result<()> {
     .exec()?;
 
     // LuaJIT does not pass this test for some reason
-    #[cfg(feature = "lua51")]
+    #[cfg(any(feature = "lua51", feature = "lua51-wasi"))]
     lua.load(
         r#"
         local stack_info = stack_info

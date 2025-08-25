@@ -221,7 +221,7 @@ impl Lua {
 
         let lua = unsafe { Self::inner_new(libs, options) };
 
-        #[cfg(not(feature = "luau"))]
+        #[cfg(all(not(feature = "luau"), not(feature = "lua51-wasi")))]
         if libs.contains(StdLib::PACKAGE) {
             mlua_expect!(lua.disable_c_modules(), "Error disabling C modules");
         }
@@ -387,7 +387,7 @@ impl Lua {
                 ffi::lua_getfield(state, ffi::LUA_REGISTRYINDEX, ffi::LUA_PRELOAD_TABLE);
             })?
         };
-        #[cfg(any(feature = "lua51", feature = "luajit"))]
+        #[cfg(any(feature = "lua51", feature = "lua51-wasi", feature = "luajit"))]
         let preload = unsafe {
             self.exec_raw::<Option<Table>>((), |state| {
                 if ffi::lua_getfield(state, ffi::LUA_REGISTRYINDEX, ffi::LUA_LOADED_TABLE) != ffi::LUA_TNIL {
@@ -1027,6 +1027,7 @@ impl Lua {
             feature = "lua53",
             feature = "lua52",
             feature = "lua51",
+            feature = "lua51-wasi",
             feature = "luajit",
             feature = "luau"
         ))]
@@ -1562,7 +1563,12 @@ impl Lua {
             assert_stack(state, 1);
             #[cfg(any(feature = "lua54", feature = "lua53", feature = "lua52"))]
             ffi::lua_rawgeti(state, ffi::LUA_REGISTRYINDEX, ffi::LUA_RIDX_GLOBALS);
-            #[cfg(any(feature = "lua51", feature = "luajit", feature = "luau"))]
+            #[cfg(any(
+                feature = "lua51",
+                feature = "lua51-wasi",
+                feature = "luajit",
+                feature = "luau"
+            ))]
             ffi::lua_pushvalue(state, ffi::LUA_GLOBALSINDEX);
             Table(lua.pop_ref())
         }
@@ -1594,7 +1600,12 @@ impl Lua {
 
             #[cfg(any(feature = "lua54", feature = "lua53", feature = "lua52"))]
             ffi::lua_rawseti(state, ffi::LUA_REGISTRYINDEX, ffi::LUA_RIDX_GLOBALS);
-            #[cfg(any(feature = "lua51", feature = "luajit", feature = "luau"))]
+            #[cfg(any(
+                feature = "lua51",
+                feature = "lua51-wasi",
+                feature = "luajit",
+                feature = "luau"
+            ))]
             ffi::lua_replace(state, ffi::LUA_GLOBALSINDEX);
         }
 
@@ -2080,7 +2091,7 @@ impl Lua {
         WeakLua(XRc::downgrade(&self.raw))
     }
 
-    #[cfg(not(feature = "luau"))]
+    #[cfg(all(not(feature = "luau"), not(feature = "lua51-wasi")))]
     fn disable_c_modules(&self) -> Result<()> {
         let package: Table = self.globals().get("package")?;
 

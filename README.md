@@ -1,4 +1,5 @@
 # mlua
+
 [![Build Status]][github-actions] [![Latest Version]][crates.io] [![API Documentation]][docs.rs] [![Coverage Status]][codecov.io] ![MSRV]
 
 [Build Status]: https://github.com/mlua-rs/mlua/workflows/CI/badge.svg
@@ -26,6 +27,25 @@ Started as an `rlua` fork, `mlua` supports Lua 5.4, 5.3, 5.2, 5.1 (including Lua
 
 WebAssembly (WASM) is supported through `wasm32-unknown-emscripten` target for all Lua/Luau versions excluding JIT.
 
+WebAssembly System Interface (WASI) is supported through `wasm32-wasip1` target with the `lua51-wasi` feature for Lua 5.1. **Important**: WASI builds require post-processing with `wasm-opt` for proper exception handling support. See the [WASI support](#wasi-support) section for detailed examples and testing instructions.
+
+```bash
+# Set WASI SDK path
+export WASI_SDK=/path/to/wasi-sdk
+
+# Build for WASI
+cargo build --target wasm32-wasip1 --features lua51-wasi,async,macros,vendored
+
+# Post-process with wasm-opt for exception handling support
+wasm-opt target/wasm32-wasip1/debug/your_binary.wasm -o your_binary.exnref.wasm --translate-to-exnref -O2
+
+# Run with wasmtime (requires v37+ or main branch with exception handling support)
+wasmtime run -W exceptions=yes your_binary.exnref.wasm
+
+# Or use the provided build script for automated processing
+./build-wasi.sh --release
+```
+
 [GitHub Actions]: https://github.com/mlua-rs/mlua/actions
 [Luau]: https://luau.org
 
@@ -36,24 +56,25 @@ WebAssembly (WASM) is supported through `wasm32-unknown-emscripten` target for a
 `mlua` uses feature flags to reduce the amount of dependencies and compiled code, and allow to choose only required set of features.
 Below is a list of the available feature flags. By default `mlua` does not enable any features.
 
-* `lua54`: enable Lua [5.4] support
-* `lua53`: enable Lua [5.3] support
-* `lua52`: enable Lua [5.2] support
-* `lua51`: enable Lua [5.1] support
-* `luajit`: enable [LuaJIT] support
-* `luajit52`: enable [LuaJIT] support with partial compatibility with Lua 5.2
-* `luau`: enable [Luau] support (auto vendored mode)
-* `luau-jit`: enable [Luau] support with JIT backend.
-* `luau-vector4`: enable [Luau] support with 4-dimensional vector.
-* `vendored`: build static Lua(JIT) libraries from sources during `mlua` compilation using [lua-src] or [luajit-src]
-* `module`: enable module mode (building loadable `cdylib` library for Lua)
-* `async`: enable async/await support (any executor can be used, eg. [tokio] or [async-std])
-* `send`: make `mlua::Lua: Send + Sync` (adds [`Send`] requirement to `mlua::Function` and `mlua::UserData`)
-* `error-send`: make `mlua:Error: Send + Sync`
-* `serde`: add serialization and deserialization support to `mlua` types using [serde]
-* `macros`: enable procedural macros (such as `chunk!`)
-* `anyhow`: enable `anyhow::Error` conversion into Lua
-* `userdata-wrappers`: opt into `impl UserData` for `Rc<T>`/`Arc<T>`/`Rc<RefCell<T>>`/`Arc<Mutex<T>>` where `T: UserData`
+- `lua54`: enable Lua [5.4] support
+- `lua53`: enable Lua [5.3] support
+- `lua52`: enable Lua [5.2] support
+- `lua51`: enable Lua [5.1] support
+- `lua51-wasi`: enable Lua [5.1] support for WASI target
+- `luajit`: enable [LuaJIT] support
+- `luajit52`: enable [LuaJIT] support with partial compatibility with Lua 5.2
+- `luau`: enable [Luau] support (auto vendored mode)
+- `luau-jit`: enable [Luau] support with JIT backend.
+- `luau-vector4`: enable [Luau] support with 4-dimensional vector.
+- `vendored`: build static Lua(JIT) libraries from sources during `mlua` compilation using [lua-src] or [luajit-src]
+- `module`: enable module mode (building loadable `cdylib` library for Lua)
+- `async`: enable async/await support (any executor can be used, eg. [tokio] or [async-std])
+- `send`: make `mlua::Lua: Send + Sync` (adds [`Send`] requirement to `mlua::Function` and `mlua::UserData`)
+- `error-send`: make `mlua:Error: Send + Sync`
+- `serde`: add serialization and deserialization support to `mlua` types using [serde]
+- `macros`: enable procedural macros (such as `chunk!`)
+- `anyhow`: enable `anyhow::Error` conversion into Lua
+- `userdata-wrappers`: opt into `impl UserData` for `Rc<T>`/`Arc<T>`/`Rc<RefCell<T>>`/`Arc<Mutex<T>>` where `T: UserData`
 
 [5.4]: https://www.lua.org/manual/5.4/manual.html
 [5.3]: https://www.lua.org/manual/5.3/manual.html
@@ -75,13 +96,14 @@ Below is a list of the available feature flags. By default `mlua` does not enabl
 This works using Lua [coroutines](https://www.lua.org/manual/5.3/manual.html#2.6) and requires running [Thread](https://docs.rs/mlua/latest/mlua/struct.Thread.html) along with enabling `feature = "async"` in `Cargo.toml`.
 
 **Examples**:
+
 - [HTTP Client](examples/async_http_client.rs)
 - [HTTP Client (json)](examples/async_http_reqwest.rs)
 - [HTTP Server](examples/async_http_server.rs)
 - [TCP Server](examples/async_tcp_server.rs)
 
-
 **shell command examples**:
+
 ```shell
 # async http client (hyper)
 cargo run --example async_http_client --features=lua54,async,macros
@@ -104,6 +126,46 @@ With the `serde` feature flag enabled, `mlua` allows you to serialize/deserializ
 [`serde::Deserialize`]: https://docs.serde.rs/serde/de/trait.Deserialize.html
 [`mlua::Value`]: https://docs.rs/mlua/latest/mlua/enum.Value.html
 
+### WASI support
+
+WebAssembly System Interface (WASI) is supported for Lua 5.1 through the `lua51-wasi` feature. WASI builds require special handling due to platform constraints and must be post-processed with `wasm-opt`.
+
+**Examples**:
+
+- [WASI Integration Test](examples/wasi_integration_test.rs) - Comprehensive functionality testing
+- [WASI Minimal Test](examples/wasi_minimal_test.rs) - Quick verification
+
+**Requirements**:
+
+- [WASI SDK](https://github.com/WebAssembly/wasi-sdk/releases) (set `WASI_SDK` environment variable)
+- [wasm-opt](https://github.com/WebAssembly/binaryen) (for post-processing)
+- [wasmtime](https://wasmtime.dev/) with exception handling support (for running)
+  - **Note**: Exception handling support (`-W exceptions=yes`) requires wasmtime v37+ or the main branch
+  - Install from source: `cargo install --git https://github.com/bytecodealliance/wasmtime wasmtime-cli`
+  - Or download v37+ releases when available
+
+**shell command examples**:
+
+```bash
+# Set WASI SDK path
+export WASI_SDK=/path/to/wasi-sdk
+
+# Build WASI integration test
+cargo build --example wasi_integration_test --features lua51-wasi,vendored --target wasm32-wasip1
+
+# Post-process with wasm-opt (required for exception handling)
+wasm-opt target/wasm32-wasip1/debug/examples/wasi_integration_test.wasm \
+         -o target/wasm32-wasip1/debug/examples/wasi_integration_test.exnref.wasm \
+         --translate-to-exnref -O2
+
+# Run with wasmtime
+wasmtime run -W exceptions=yes target/wasm32-wasip1/debug/examples/wasi_integration_test.exnref.wasm
+```
+
+**Note**: If you encounter library initialization issues (libraries appearing as strings instead of tables), ensure you're using the `lua51-wasi` feature and not the regular `lua51` feature for WASI builds.
+
+**Wasmtime Version**: If you get errors like "unknown flag: exceptions" or similar, your wasmtime version is too old. Exception handling support requires wasmtime v37+ or the main branch.
+
 ### Compiling
 
 You have to enable one of the features: `lua54`, `lua53`, `lua52`, `lua51`, `luajit(52)` or `luau`, according to the chosen Lua version.
@@ -114,7 +176,8 @@ To achieve this, mlua supports the `LUA_LIB`, `LUA_LIB_NAME` and `LUA_LINK` envi
 `LUA_LINK` is optional and may be `dylib` (a dynamic library) or `static` (a static library, `.a` archive).
 
 An example of how to use them:
-``` sh
+
+```sh
 my_project $ LUA_LIB=$HOME/tmp/lua-5.2.4/src LUA_LIB_NAME=lua LUA_LINK=static cargo build
 ```
 
@@ -123,18 +186,19 @@ my_project $ LUA_LIB=$HOME/tmp/lua-5.2.4/src LUA_LIB_NAME=lua LUA_LINK=static ca
 Just enable the `vendored` feature and cargo will automatically build and link the specified Lua/LuaJIT version. This is the easiest way to get started with `mlua`.
 
 ### Standalone mode
+
 In standalone mode, `mlua` allows adding scripting support to your application with a gently configured Lua runtime to ensure safety and soundness.
 
 Add to `Cargo.toml`:
 
-``` toml
+```toml
 [dependencies]
 mlua = { version = "0.11", features = ["lua54", "vendored"] }
 ```
 
 `main.rs`
 
-``` rust
+```rust
 use mlua::prelude::*;
 
 fn main() -> LuaResult<()> {
@@ -153,13 +217,14 @@ fn main() -> LuaResult<()> {
 ```
 
 ### Module mode
+
 In module mode, `mlua` allows creating a compiled Lua module that can be loaded from Lua code using [`require`](https://www.lua.org/manual/5.4/manual.html#pdf-require). In this case `mlua` uses an external Lua runtime which could lead to potential unsafety due to the unpredictability of the Lua environment and usage of libraries such as [`debug`](https://www.lua.org/manual/5.4/manual.html#6.10).
 
 [Example](examples/module)
 
 Add to `Cargo.toml`:
 
-``` toml
+```toml
 [lib]
 crate-type = ["cdylib"]
 
@@ -169,7 +234,7 @@ mlua = { version = "0.11", features = ["lua54", "module"] }
 
 `lib.rs`:
 
-``` rust
+```rust
 use mlua::prelude::*;
 
 fn hello(_: &Lua, name: String) -> LuaResult<()> {
@@ -187,7 +252,7 @@ fn my_module(lua: &Lua) -> LuaResult<LuaTable> {
 
 And then (**macOS** example):
 
-``` sh
+```sh
 $ cargo rustc -- -C link-arg=-undefined -C link-arg=dynamic_lookup
 $ ln -s ./target/debug/libmy_module.dylib ./my_module.so
 $ lua5.4 -e 'require("my_module").hello("world")'
@@ -195,7 +260,8 @@ hello, world!
 ```
 
 On macOS, you need to set additional linker arguments. One option is to compile with `cargo rustc --release -- -C link-arg=-undefined -C link-arg=dynamic_lookup`, the other is to create a `.cargo/config.toml` with the following content:
-``` toml
+
+```toml
 [target.x86_64-apple-darwin]
 rustflags = [
   "-C", "link-arg=-undefined",
@@ -208,6 +274,7 @@ rustflags = [
   "-C", "link-arg=dynamic_lookup",
 ]
 ```
+
 On Linux you can build modules normally with `cargo build --release`.
 
 On Windows the target module will be linked with the `lua5x.dll` library (depending on your feature flags).
@@ -220,6 +287,7 @@ Module builds don't require Lua binaries or headers to be installed on the syste
 There is a LuaRocks build backend for mlua modules: [`luarocks-build-rust-mlua`].
 
 Modules written in Rust and published to luarocks:
+
 - [`decasify`](https://github.com/alerque/decasify)
 - [`lua-ryaml`](https://github.com/khvzak/lua-ryaml)
 - [`tiktoken_core`](https://github.com/gptlang/lua-tiktoken)
@@ -230,7 +298,7 @@ Modules written in Rust and published to luarocks:
 
 ## Safety
 
-One of `mlua`'s goals is to provide a *safe* API between Rust and Lua.
+One of `mlua`'s goals is to provide a _safe_ API between Rust and Lua.
 Every place where the Lua C API may trigger an error longjmp is protected by `lua_pcall`,
 and the user of the library is protected from directly interacting with unsafe things like the Lua stack.
 There is overhead associated with this safety.
@@ -245,7 +313,8 @@ It is surprisingly, fiendishly difficult to use the Lua C API without the potent
 resumed by returning or propagating the Lua error to Rust code.
 
 For example:
-``` rust
+
+```rust
 let lua = Lua::new();
 let f = lua.create_function(|_, ()| -> LuaResult<()> {
     panic!("test panic");
@@ -273,13 +342,13 @@ using panics for general error handling.
 Below is a list of `mlua` behaviors that should be considered a bug.
 If you encounter them, a bug report would be very welcome:
 
-  + If you can cause UB with `mlua` without typing the word "unsafe", this is a bug.
+- If you can cause UB with `mlua` without typing the word "unsafe", this is a bug.
 
-  + If your program panics with a message that contains the string "mlua internal error", this is a bug.
+- If your program panics with a message that contains the string "mlua internal error", this is a bug.
 
-  + Lua C API errors are handled by longjmp. All instances where the Lua C API would otherwise longjmp over calling stack frames should be guarded against, except in internal callbacks where this is intentional. If you detect that `mlua` is triggering a longjmp over your Rust stack frames, this is a bug!
+- Lua C API errors are handled by longjmp. All instances where the Lua C API would otherwise longjmp over calling stack frames should be guarded against, except in internal callbacks where this is intentional. If you detect that `mlua` is triggering a longjmp over your Rust stack frames, this is a bug!
 
-  + If you detect that, after catching a panic or during a Drop triggered from a panic, a `Lua` or handle method is triggering other bugs or there is a Lua stack space leak, this is a bug. `mlua` instances are supposed to remain fully usable in the face of user generated panics. This guarantee does not extend to panics marked with "mlua internal error" simply because that is already indicative of a separate bug.
+- If you detect that, after catching a panic or during a Drop triggered from a panic, a `Lua` or handle method is triggering other bugs or there is a Lua stack space leak, this is a bug. `mlua` instances are supposed to remain fully usable in the face of user generated panics. This guarantee does not extend to panics marked with "mlua internal error" simply because that is already indicative of a separate bug.
 
 ## Sandboxing
 

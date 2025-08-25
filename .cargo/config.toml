@@ -1,0 +1,15 @@
+[target.wasm32-wasip1]
+# Configure runner to use wasmtime with exceptions enabled
+runner = "wasmtime run -W exceptions=yes"
+
+# Build flags for WASI target with exception handling support
+rustflags = ["-C", "target-feature=+exception-handling"]
+
+# Custom build aliases for lua51-wasi
+[alias]
+build-wasi = "build --target wasm32-wasip1 --features lua51-wasi,macros,vendored"
+test-wasi = "test --target wasm32-wasip1 --features lua51-wasi,macros,vendored --no-default-features"
+
+# Note: WASI builds require post-processing with wasm-opt for exception handling:
+# wasm-opt <output>.wasm -o <output>.exnref.wasm --translate-to-exnref -O2
+# Use ./build-wasi.sh script for automated processing

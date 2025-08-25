@@ -543,7 +543,10 @@ impl<T> UserDataMethods<T> for UserDataRegistry<T> {
         self.raw.meta_methods.push((name, callback));
     }
 
-    #[cfg(all(feature = "async", not(any(feature = "lua51", feature = "luau"))))]
+    #[cfg(all(
+        feature = "async",
+        not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau"))
+    ))]
     fn add_async_meta_method<M, A, MR, R>(&mut self, name: impl Into<StdString>, method: M)
     where
         T: 'static,
@@ -557,7 +560,10 @@ impl<T> UserDataMethods<T> for UserDataRegistry<T> {
         self.raw.async_meta_methods.push((name, callback));
     }
 
-    #[cfg(all(feature = "async", not(any(feature = "lua51", feature = "luau"))))]
+    #[cfg(all(
+        feature = "async",
+        not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau"))
+    ))]
     fn add_async_meta_method_mut<M, A, MR, R>(&mut self, name: impl Into<StdString>, method: M)
     where
         T: 'static,
@@ -593,7 +599,10 @@ impl<T> UserDataMethods<T> for UserDataRegistry<T> {
         self.raw.meta_methods.push((name, callback));
     }
 
-    #[cfg(all(feature = "async", not(any(feature = "lua51", feature = "luau"))))]
+    #[cfg(all(
+        feature = "async",
+        not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau"))
+    ))]
     fn add_async_meta_function<F, A, FR, R>(&mut self, name: impl Into<StdString>, function: F)
     where
         F: Fn(Lua, A) -> FR + MaybeSend + 'static,

@@ -274,7 +274,12 @@ impl Function {
                 return None;
             }
 
-            #[cfg(any(feature = "lua51", feature = "luajit", feature = "luau"))]
+            #[cfg(any(
+                feature = "lua51",
+                feature = "lua51-wasi",
+                feature = "luajit",
+                feature = "luau"
+            ))]
             ffi::lua_getfenv(state, -1);
             #[cfg(any(feature = "lua54", feature = "lua53", feature = "lua52"))]
             for i in 1..=255 {
@@ -311,7 +316,12 @@ impl Function {
                 return Ok(false);
             }
 
-            #[cfg(any(feature = "lua51", feature = "luajit", feature = "luau"))]
+            #[cfg(any(
+                feature = "lua51",
+                feature = "lua51-wasi",
+                feature = "luajit",
+                feature = "luau"
+            ))]
             {
                 lua.push_ref(&env.0);
                 ffi::lua_setfenv(state, -2);

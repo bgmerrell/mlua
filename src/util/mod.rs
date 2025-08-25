@@ -228,7 +228,7 @@ pub(crate) unsafe fn get_main_state(state: *mut ffi::lua_State) -> Option<*mut f
         ffi::lua_pop(state, 1);
         Some(main_state)
     }
-    #[cfg(any(feature = "lua51", feature = "luajit"))]
+    #[cfg(any(feature = "lua51", feature = "lua51-wasi", feature = "luajit"))]
     {
         // Check the current state first
         let is_main_state = ffi::lua_pushthread(state) == 1;

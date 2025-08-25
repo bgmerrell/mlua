@@ -443,14 +443,14 @@ async fn test_async_userdata() -> Result<()> {
                 Ok(format!("elapsed:{}ms", n))
             });
 
-            #[cfg(not(any(feature = "lua51", feature = "luau")))]
+            #[cfg(not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau")))]
             methods.add_async_meta_method(mlua::MetaMethod::Call, |_, data, ()| async move {
                 let n = data.0;
                 sleep_ms(n).await;
                 Ok(format!("elapsed:{}ms", n))
             });
 
-            #[cfg(not(any(feature = "lua51", feature = "luau")))]
+            #[cfg(not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau")))]
             methods.add_async_meta_method(mlua::MetaMethod::Index, |_, data, key: String| async move {
                 sleep_ms(10).await;
                 match key.as_str() {
@@ -460,7 +460,7 @@ async fn test_async_userdata() -> Result<()> {
                 }
             });
 
-            #[cfg(not(any(feature = "lua51", feature = "luau")))]
+            #[cfg(not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau")))]
             methods.add_async_meta_method_mut(
                 mlua::MetaMethod::NewIndex,
                 |_, mut data, (key, value): (String, f64)| async move {
@@ -493,7 +493,7 @@ async fn test_async_userdata() -> Result<()> {
     .exec_async()
     .await?;
 
-    #[cfg(not(any(feature = "lua51", feature = "luau")))]
+    #[cfg(not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau")))]
     lua.load(
         r#"
         userdata:set_value(15)
@@ -515,7 +515,7 @@ async fn test_async_userdata() -> Result<()> {
     assert_eq!(n, 24);
     userdata.call_async_function::<()>("sleep", 15).await?;
 
-    #[cfg(not(any(feature = "lua51", feature = "luau")))]
+    #[cfg(not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau")))]
     assert_eq!(userdata.call_async::<String>(()).await?, "elapsed:24ms");
 
     Ok(())

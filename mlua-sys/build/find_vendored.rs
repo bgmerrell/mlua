@@ -13,6 +13,9 @@ pub fn probe_lua() {
     #[cfg(feature = "lua51")]
     let artifacts = lua_src::Build::new().build(lua_src::Lua51);
 
+    #[cfg(feature = "lua51-wasi")]
+    let artifacts = lua_src::Build::new().build(lua_src::Lua51);
+
     #[cfg(feature = "luajit")]
     let artifacts = luajit_src::Build::new()
         .lua52compat(cfg!(feature = "luajit52"))

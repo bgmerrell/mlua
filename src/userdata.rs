@@ -373,10 +373,16 @@ pub trait UserDataMethods<T> {
     /// This is an async version of [`add_meta_method`].
     ///
     /// [`add_meta_method`]: UserDataMethods::add_meta_method
-    #[cfg(all(feature = "async", not(any(feature = "lua51", feature = "luau"))))]
+    #[cfg(all(
+        feature = "async",
+        not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau"))
+    ))]
     #[cfg_attr(
         docsrs,
-        doc(cfg(all(feature = "async", not(any(feature = "lua51", feature = "luau")))))
+        doc(cfg(all(
+            feature = "async",
+            not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau"))
+        )))
     )]
     fn add_async_meta_method<M, A, MR, R>(&mut self, name: impl Into<StdString>, method: M)
     where
@@ -392,7 +398,10 @@ pub trait UserDataMethods<T> {
     /// This is an async version of [`add_meta_method_mut`].
     ///
     /// [`add_meta_method_mut`]: UserDataMethods::add_meta_method_mut
-    #[cfg(all(feature = "async", not(any(feature = "lua51", feature = "luau"))))]
+    #[cfg(all(
+        feature = "async",
+        not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau"))
+    ))]
     #[cfg_attr(docsrs, doc(cfg(feature = "async")))]
     fn add_async_meta_method_mut<M, A, MR, R>(&mut self, name: impl Into<StdString>, method: M)
     where
@@ -429,10 +438,16 @@ pub trait UserDataMethods<T> {
     /// This is an async version of [`add_meta_function`].
     ///
     /// [`add_meta_function`]: UserDataMethods::add_meta_function
-    #[cfg(all(feature = "async", not(any(feature = "lua51", feature = "luau"))))]
+    #[cfg(all(
+        feature = "async",
+        not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau"))
+    ))]
     #[cfg_attr(
         docsrs,
-        doc(cfg(all(feature = "async", not(any(feature = "lua51", feature = "luau")))))
+        doc(cfg(all(
+            feature = "async",
+            not(any(feature = "lua51", feature = "lua51-wasi", feature = "luau"))
+        )))
     )]
     fn add_async_meta_function<F, A, FR, R>(&mut self, name: impl Into<StdString>, function: F)
     where

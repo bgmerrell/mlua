@@ -12,7 +12,9 @@ use rustc_hash::FxHashMap;
 use crate::error::Result;
 use crate::state::RawLua;
 use crate::stdlib::StdLib;
-use crate::types::{AppData, ReentrantMutex, ValueRefIndex, XRc};
+#[cfg(feature = "async")]
+use crate::types::ValueRefIndex;
+use crate::types::{AppData, ReentrantMutex, XRc};
 use crate::userdata::RawUserDataRegistry;
 use crate::util::{get_internal_metatable, push_internal_userdata, TypeKey, WrappedFailure};
 
@@ -120,7 +122,12 @@ impl TypeKey for XRc<UnsafeCell<ExtraData>> {
 
 impl ExtraData {
     // Index of `error_traceback` function in auxiliary thread stack
-    #[cfg(any(feature = "lua51", feature = "luajit", feature = "luau"))]
+    #[cfg(any(
+        feature = "lua51",
+        feature = "lua51-wasi",
+        feature = "luajit",
+        feature = "luau"
+    ))]
     pub(super) const ERROR_TRACEBACK_IDX: c_int = 1;
 
     pub(super) unsafe fn init(state: *mut ffi::lua_State, owned: bool) -> XRc<UnsafeCell<Self>> {
@@ -143,7 +150,12 @@ impl ExtraData {
         };
 
         // Store `error_traceback` function on the ref stack
-        #[cfg(any(feature = "lua51", feature = "luajit", feature = "luau"))]
+        #[cfg(any(
+            feature = "lua51",
+            feature = "lua51-wasi",
+            feature = "luajit",
+            feature = "luau"
+        ))]
         {
             ffi::lua_pushcfunction(ref_thread, crate::util::error_traceback);
             assert_eq!(ffi::lua_gettop(ref_thread), Self::ERROR_TRACEBACK_IDX);
